@@ -1,0 +1,39 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+paths = (File.read('running') || "").split("\n")
+paths.concat((ENV['docker_path'] || "").split(','))
+
+print "PATHS: #{paths}\n"
+
+Vagrant.configure("2") do |config|
+  #config.vagrant.plugins = "vagrant-docker-compose"
+  config.vm.box = "ubuntu/xenial64"
+  config.vm.hostname = "docker-host"
+  config.vm.network "private_network", ip: "10.30.10.100"
+  #config.vm.network "forwarded_port", guest: 80, host: 8090
+  config.vm.define "docker"
+  config.vm.box_check_update = false
+  config.vm.provider :virtualbox do |vb|
+  	vb.customize ["modifyvm", :id, "--memory", 2048]
+  	vb.customize ["modifyvm", :id, "--name", "docker-vb"]  
+  end
+  
+  config.vm.provision "shell", path: "docker-install.sh"
+
+  #config.vm.provision :docker
+  #config.vm.provision :docker_compose, yml: docker_compose_paths, command_options: { rm: "", up: "-d --timeout 20"}, rebuild: true, run: "always"
+
+  paths.each do |path|
+    folderName = "/" + path.split('\\')[-1]
+    config.vm.synced_folder path, folderName
+    config.vm.provision "shell", inline: "cd #{folderName} && docker-compose up"
+  end
+
+  File.open("running", "w") do |f|     
+    paths.each do |path|
+      f.write("#{path}\n")
+    end
+  end
+
+end
